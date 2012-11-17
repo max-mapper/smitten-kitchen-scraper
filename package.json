@@ -1,4 +1,9 @@
 {
   "name": "smitten-kitchen",
-  "version": "0.0.1"
+  "version": "0.0.1",
+  "dependencies": {
+    "async": "0.1.22",
+    "request": "2.12.0",
+    "cheerio": "0.10.1"
+  }
 }

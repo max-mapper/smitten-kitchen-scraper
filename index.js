@@ -7,31 +7,60 @@ var recipesURL = "http://smittenkitchen.com/recipes"
 
 request(recipesURL, function(err, resp, body) {
   var recipeLinks = getRecipeLinks(body)
-  fs.writeFileSync('recipeLinks.json', JSON.stringify(recipeLinks))
   downloadRecipes(recipeLinks)
 })
 
-function downloadRecipes(recipeLinks) {
-  var posts = {}
-  var recipes = Object.keys(recipeLinks)
-  var pending = recipes.length
-  var queue = async.queue(function(link, cb) {
-    request(link.href, function(err, resp, body) {
-      console.log(pending--)
-      if (err) return cb(err)
-      var html = $.load(body.toString())
-      var post = html('.post').html()
-      posts[link.title] = {html: post, href: link.href}
-      fs.writeFileSync('posts/' + link.title + '.html', post)
-      cb(false)
-    })
-  }, 5)
-  recipes.map(function(link) { 
-    queue.push({title: recipeLinks[link], href: link})
+var queue = async.queue(function(link, cb) {
+  if (link.href.match(/(png|jpg)$/i)) return downloadImage(link, cb)
+  downloadRecipe(link, cb)
+}, 5)
+
+queue.drain = function() {
+  console.log('done')
+}
+
+function queueJob(link) {
+  queue.push(link, function(err) {
+    if (err) console.error(link, err)
+    else console.log('finished', link.title)
+    console.log('queue length: ', queue.length())
   })
-  queue.drain = function() {
-    console.log('done')
-  }
+}
+
+function downloadRecipes(recipeLinks) {
+  var recipes = Object.keys(recipeLinks)
+  // recipes.map(function(link) {
+  queueJob({title: recipeLinks[recipes[0]], href: recipes[0]})
+  queueJob({title: recipeLinks[recipes[1]], href: recipes[1]})
+  // })
+}
+
+function downloadImage(link, cb) {
+  request(link.href)
+    .pipe(fs.createWriteStream('posts/' + link.title))
+    .on('end', cb)
+    .on('error', cb)
+}
+
+function downloadRecipe(link, cb) {
+  request(link.href, function(err, resp, body) {
+    if (err) return cb(err)
+    var html = $.load(body.toString())
+    var post = html('.post')
+    var postHTML = $.load(post.html())
+    postHTML('img').map(function(i, img) {
+      img = $(img)
+      var src = img.attr('src')
+      var title = src.split('/')
+      title = title[title.length - 1]
+      if (src.match(/(png|jpg)$/i)) {
+        queueJob({title: title, href: src})
+        img.attr('src', title)
+      }
+    })
+    fs.writeFileSync('posts/' + link.title + '.html', postHTML.html())
+    cb(false)
+  })
 }
 
 function getRecipeLinks(body) {
