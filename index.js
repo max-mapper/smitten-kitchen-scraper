@@ -16,30 +16,33 @@ var queue = async.queue(function(link, cb) {
 }, 5)
 
 queue.drain = function() {
-  console.log('done')
+  console.log('all done!')
 }
 
 function queueJob(link) {
   queue.push(link, function(err) {
     if (err) console.error(link, err)
-    else console.log('finished', link.title)
-    console.log('queue length: ', queue.length())
+    else console.log('finished', link.title, 'queue length:', queue.length())
   })
 }
 
 function downloadRecipes(recipeLinks) {
   var recipes = Object.keys(recipeLinks)
-  // recipes.map(function(link) {
-  queueJob({title: recipeLinks[recipes[0]], href: recipes[0]})
-  queueJob({title: recipeLinks[recipes[1]], href: recipes[1]})
-  // })
+  recipes.map(function(link) {
+    queueJob({title: recipeLinks[link], href: link})
+  })
 }
 
 function downloadImage(link, cb) {
-  request(link.href)
-    .pipe(fs.createWriteStream('posts/' + link.title))
-    .on('end', cb)
-    .on('error', cb)
+  var firedCallback = false
+  var req = request(link.href)
+    .on('end', fireCallback)
+    .on('error', fireCallback)
+  req.pipe(fs.createWriteStream('posts/' + link.title))
+  function fireCallback(err) {
+    if (!firedCallback) cb(err)
+    firedCallback = true
+  }
 }
 
 function downloadRecipe(link, cb) {
